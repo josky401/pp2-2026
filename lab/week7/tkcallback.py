@@ -1,6 +1,6 @@
 # tkcallback.py 로 저장하여 실행할 것!!
 # 
-from tkinter import *
+from tkinter import * # type: ignore
 
 class Button3Status:
     def __init__(self):

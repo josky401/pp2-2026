@@ -1,57 +1,96 @@
 import json
-import os
+import csv
+import pickle
 
-class HealthDatabase:
-    def __init__(self, filename="health_data.json"):
-        self.filename = filename
-        self.records = []  # 환자 기록을 담을 리스트
-        self.load_data()   # 시작할 때 파일에서 데이터 불러오기
-
-    def add_record(self, name, age, height, weight):
-        # BMI 계산 (키는 cm이므로 m로 변환)
-        height_m = height / 100
-        bmi = round(weight / (height_m ** 2), 2) if height > 0 else 0
+class HealthDB:
+    def __init__(self):
+        self.json_file = "health_management_project\\data\\health_data.json"
+        self.csv_file = "health_management_project\\data\\health_data.csv"
+        self.txt_file = "health_management_project\\data\\health_data.txt"
+        self.pkl_file = "health_management_project\\data\\health_data.pkl"
         
-        # 간단한 비만도 상태 판정
-        if bmi < 18.5:
-            status = "저체중"
-        elif bmi < 23:
-            status = "정상"
-        elif bmi < 25:
-            status = "과체중"
-        else:
-            status = "비만"
-
-        # 데이터 딕셔너리 생성
-        record = {
-            "name": name,
-            "age": age,
-            "height": height,
-            "weight": weight,
-            "bmi": bmi,
-            "status": status
-        }
-        
-        self.records.append(record)
-        self.save_data()
-
-    def save_data(self):
-        #현재 데이터 목록을 JSON 파일로 안전하게 저장합니다.
-        try:
-            with open(self.filename, "w", encoding="utf-8") as f:
-                json.dump(self.records, f, ensure_ascii=False, indent=4)
-        except Exception as e:
-            print(f"[경고] 파일 저장 실패: {e}")
-
     def load_data(self):
-        #프로그램 실행 시 파일에서 데이터를 불러옵니다. (파일이 없으면 빈 리스트)
-        if not os.path.exists(self.filename):
-            self.records = []
-            return
+        with open(self.json_file, "r", encoding="utf-8") as jf:
+            jsdata = json.load(jf)
+        
+        with open(self.csv_file, "r", encoding="utf-8") as cf:
+            csvdata = list(csv.DictReader(cf))
 
-        try:
-            with open(self.filename, "r", encoding="utf-8") as f:
-                self.records = json.load(f)
-        except Exception as e:
-            print(f"[경고] 파일이 손상되었거나 읽을 수 없습니다: {e}")
-            self.records = []
+        with open(self.txt_file, "r", encoding="utf-8") as tf:
+            txtdata = [line.strip().split(",") for line in tf.readlines()]
+
+        with open(self.pkl_file, "rb") as pf:
+            pkldata = pickle.load(pf)
+
+        return jsdata, csvdata, txtdata, pkldata
+
+    def save_data(self, jsdata, csvdata, txtdata, pkldata):
+        with open(self.json_file, "w", encoding="utf-8") as jf:
+            json.dump(jsdata, jf, ensure_ascii=False, indent=4)
+
+        with open(self.csv_file, "w", encoding="utf-8", newline="") as cf:
+            writer = csv.DictWriter(cf, fieldnames=csvdata[0].keys())
+            writer.writeheader()
+            writer.writerows(csvdata)
+
+        with open(self.txt_file, "w", encoding="utf-8") as tf:
+            for row in txtdata:
+                tf.write(",".join(row) + "\n")
+
+        with open(self.pkl_file, "wb") as pf:
+            pickle.dump(pkldata, pf)
+
+#AI 사용
+if __name__ == "__main__":
+    # 1. 테스트용 원본 데이터 (딕셔너리 리스트)
+    records = [
+        {"id_num": "H001", "name": "김철수", "birth_year": 2002, "gender": "남", "height": 175.0, "weight": 70.0, "bmi": 22.86, "obesity_status": "정상"},
+        {"id_num": "H002", "name": "이영희", "birth_year": 2004, "gender": "여", "height": 162.5, "weight": 54.0, "bmi": 20.44, "obesity_status": "정상"}
+    ]
+
+    print("원본 데이터:", records)
+    db = HealthDB() # 이미 구현된 클래스
+
+    # 2. TXT 저장을 위한 문자열 리스트 변환 (for 축약문법 활용)
+    txt_rows = [
+        [r["id_num"], r["name"], str(r["birth_year"]), r["gender"], str(r["height"]), str(r["weight"]), str(r["bmi"]), r["obesity_status"]]
+        for r in records
+    ]
+
+    # 3. 저장 및 로드 검증
+    db.save_data(records, records, txt_rows, records)
+    jsdata, csvdata, txtdata, pkldata = db.load_data()
+
+    # 4. CSV에서 문자열로 읽은 숫자/수치형 데이터 복원
+    for row in csvdata:
+        row["birth_year"] = int(row["birth_year"])
+        row["height"] = float(row["height"])
+        row["weight"] = float(row["weight"])
+        row["bmi"] = float(row["bmi"])
+
+    # 5. TXT에서 읽은 리스트를 원본과 같은 딕셔너리로 복원
+    txtdata = [
+        {
+            "id_num": row[0],
+            "name": row[1],
+            "birth_year": int(row[2]),
+            "gender": row[3],
+            "height": float(row[4]),
+            "weight": float(row[5]),
+            "bmi": float(row[6]),
+            "obesity_status": row[7]
+        }
+        for row in txtdata
+    ]
+
+    # 6. 포맷별 결과 비교 출력
+    results = {
+        "JSON": jsdata,
+        "CSV": csvdata,
+        "TXT": txtdata,
+        "PKL": pkldata
+    }
+
+    for file_type, loaded in results.items():
+        print(f"\n{file_type}에서 읽은 데이터:", loaded)
+        print("원본과 일치:", records == loaded)
